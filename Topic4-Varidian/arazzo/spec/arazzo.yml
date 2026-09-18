@@ -1,0 +1,33 @@
+# $schema: https://spec.openapis.org/arazzo/1.1/schema/2026-04-15
+arazzo: "1.1.0"
+info:
+  title: An example workflow.
+  version: "1.0"
+  summary: An example specification of an Arazzo workflow that calls OGC-processes.
+
+sourceDescriptions:
+  - name: processes # Arazzo-description with a reusable workflow to trigger OGC-processes.
+    url: ./execute-process.yml
+    type: arazzo
+
+workflows:
+  - workflowId: testRecipe
+    inputs:
+      type: object # Can be typed further when using a concrete use case.
+    steps:
+      - stepId: executeTestProcess
+        description: "Step 1: Execute process 1"
+        workflowId: $sourceDescriptions.processes.executeAsync
+        parameters:
+          - name: processId
+            value: test-process-1 # Example value.
+          - name: inputs
+            value: $inputs
+      - stepId: executeTestProcessTwo
+        description: "Step 2: Execute process 2"
+        workflowId: $sourceDescriptions.processes.executeAsync
+        parameters:
+          - name: processId
+            value: test-process-2 # Example value.
+          - name: inputs
+            value: $executeTestProcess.outputs # Or any other output-input mapping.
