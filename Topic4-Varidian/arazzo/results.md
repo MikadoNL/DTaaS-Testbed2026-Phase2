@@ -27,7 +27,7 @@ Arazzo is a standard that is still young and under development.
 - The standard itself does not yet feel fully mature. The first version (1.0.0) dates back to 2025, and the most recent version is from August 2026.
 - As a result, the tools that use an Arazzo specification are also still in their early stages.
    - Some runners still have some teething problems:
-      - [The Python module `arazzo-runner`](https://pypi.org/project/arazzo-runner/) appears to proceed to the next step even when the previous step failed.
+      - [The Python module `arazzo-runner`](https://pypi.org/project/arazzo-runner/) proceeds to the next step [even when the previous step failed and is retried](https://github.com/jentic/arazzo-engine/issues/141).
       - [Redocly Respect](https://redocly.com/learn/arazzo/testing-arazzo-workflows) has a bug where importing workflows from other files causes a stack overflow.
 
 ## Invoking an OGC Process via a Workflow
