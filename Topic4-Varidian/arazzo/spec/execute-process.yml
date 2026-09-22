@@ -1,0 +1,105 @@
+# $schema: https://spec.openapis.org/arazzo/1.1/schema/2026-04-15
+arazzo: "1.1.0"
+info:
+  title: Workflows to trigger an OGC-process.
+  version: "1.0"
+  summary: Workflows to trigger an OGC-process.
+
+sourceDescriptions:
+  - name: registry
+    url: https://example.org/ogc-processes-registry # URL to an OpenAPI-description of an OGC Processes registry.
+    type: openapi
+
+workflows:
+  - workflowId: executeAsync
+    summary: A workflow to execute an OGC-process asynchronously.
+    description: A workflow to execute an OGC-process asynchronously.
+    inputs:
+      type: object
+      properties:
+        processId:
+          type: string
+          description: The ID of the process that should be executed.
+        inputs:
+          type: object
+          description: The inputs to give to the process.
+    outputs:
+      # Map results of a (succesful) job to a workflow output, 
+      # so it can be used outside of this workflow, e.g. as an input for other processes.
+      results: $steps.getJobResults.results 
+    steps:
+      - stepId: callProcess
+        description: Start the process in the registry.
+        operationId: execute # Reference to the `/processes/{processId}/execution` endpoint in the OpenAPI-description of the Process-registry.
+        parameters:
+          - name: processId
+            in: path
+            value: $inputs.processId # ID of the process.
+          - name: Prefer
+            in: header
+            value: respond-async # Async process.
+        requestBody:
+          contentType: application/json
+          payload:
+            inputs: $inputs.inputs
+        successCriteria:
+          - condition: $statusCode == 201
+        onSuccess:
+          - name: gotoGetJobStatus
+            type: goto
+            stepId: getJobStatus
+        outputs:
+          jobId: $response.body#/id # Retrieve the job ID from the body, so we can use it in the next steps (poll for job status and retrieving the results).
+
+      - stepId: getJobStatus
+        description: Poll for job status.
+        operationId: getStatus # Reference to the `/jobs/{jobId}` endpoint in the OpenAPI-description of the Process-registry.
+        dependsOn:
+          - callProcess
+        parameters:
+          - name: jobId
+            in: path
+            value: $steps.callProcess.outputs.jobId # Use the job ID we got from step 1.
+        successCriteria:
+          - condition: $response.body#/status == "successful"
+        onSuccess:
+          - name: gotoGetJobResults
+            type: goto
+            stepId: getJobResults
+            criteria:
+              - condition: $response.body#/status == "successful" # If the job is done (and successful) we can go to the next step to retrieve the results.
+        outputs:
+          status: $response.body#/status
+        onFailure:
+          - name: endWorkflowWhenDismissed
+            type: end
+            criteria:
+              - condition: $steps.getJobStatus.status == "dismissed"
+          - name: endWorkflowWhenFailed
+            type: end
+            criteria:
+              - condition: $steps.getJobStatus.status == "failed"
+          - name: retryUntilSuccessful
+            type: retry
+            stepId: getJobStatus
+            retryLimit: 10 # A bit arbitrary limit. Sadly cannot be set by using a Runtime Expression (like `$inputs.retryLimit`).
+            retryAfter: 2 # In seconds, also a bit arbitrary.
+            criteria:
+              - condition: $response.body#/status == "running"
+
+      - stepId: getJobResults
+        description: Retrieve results
+        operationId: getResult # `/jobs/{jobId}/results`
+        dependsOn:
+          - getJobStatus
+        parameters:
+          - name: jobId
+            in: path
+            value: $steps.callProcess.outputs.jobId
+        successCriteria:
+          - condition: $statusCode == 200
+        onSuccess:
+          - name: endWorkflow
+            type: end
+        outputs:
+          results: $response.body # Make the results of the job available to the workflow.
